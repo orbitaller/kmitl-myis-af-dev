@@ -44,7 +44,7 @@ with DAG(
     default_args=default_args,
     description='[regdtb] My test workflow to understand covid result',
     schedule_interval=timedelta(days=1),
-    start_date=datetime.today(),
+    start_date=datetime(2021, 10, 25, 1, 30, 0),
     catchup=False,
     tags=['regdtb','learn','COVID-19'],
 ) as dag:
@@ -54,6 +54,7 @@ with DAG(
         response = requests.get(url)
         data = response.text
         ti.xcom_push('covid19_today_data', data)
+        return response.json()
     def load(**kwargs):
         sql = """
         INSERT INTO regdtb.learn_covid19_stat (txn_date, new_case, total_case, new_case_excludeabroad, total_case_excludeabroad, new_death, total_death, new_recovered, total_recovered, updated_dt, data_updated_dt)
@@ -61,19 +62,19 @@ with DAG(
         """
         ti = kwargs['ti']
         extract_data_string = ti.xcom_pull(task_ids='extract_covid19_data', key='covid19_today_data')
-        covid19_data = json.loads(extract_data_string)
+        covid19_data = json.loads(extract_data_string)[0]
         postgres_hook = PostgresHook(postgres_conn_id='regdtb_dwh')
         postgres_hook.run(sql, parameters=(
-            covid19_data[0]['txn_date'],
-            covid19_data[0]['new_case'],
-            covid19_data[0]['total_case'],
-            covid19_data[0]['new_case_excludeabroad'],
-            covid19_data[0]['total_case_excludeabroad'],
-            covid19_data[0]['new_death'],
-            covid19_data[0]['total_death'],
-            covid19_data[0]['new_recovered'],
-            covid19_data[0]['total_recovered'],
-            covid19_data[0]['update_date']
+            covid19_data['txn_date'],
+            covid19_data['new_case'],
+            covid19_data['total_case'],
+            covid19_data['new_case_excludeabroad'],
+            covid19_data['total_case_excludeabroad'],
+            covid19_data['new_death'],
+            covid19_data['total_death'],
+            covid19_data['new_recovered'],
+            covid19_data['total_recovered'],
+            covid19_data['update_date']
         ))
     t1 = PythonOperator(
         task_id='extract_covid19_data',
